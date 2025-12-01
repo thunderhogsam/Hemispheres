@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hemispheres Puzzle Game</title>
+    <!-- Tailwind CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- React and ReactDOM CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel CDN for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- canvas-confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+      .serif { font-family: 'Georgia', serif; }
+      .mono { font-family: 'Fira Mono', 'Menlo', 'Consolas', monospace; }
+      .outfit { font-family: 'Outfit', 'Arial Rounded MT Bold', Arial, sans-serif; }
+      .shake {
+        animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+      }
+      @keyframes shake {
+        10%, 90% { transform: translateX(-2px); }
+        20%, 80% { transform: translateX(4px); }
+        30%, 50%, 70% { transform: translateX(-8px); }
+        40%, 60% { transform: translateX(8px); }
+      }
+    </style>
+  </head>
+  <body class="overflow-hidden">
+    <div id="root"></div>
+    <script type="text/babel">
+// -- Puzzle Bank: Add more puzzles --
+const PUZZLE_BANK = [
+  {
+    riddle: `You cannot see me, but I make things visible.\nI can fill a room without occupying space.\nI vanish at night and return with the day.\nWhat am I?`,
+    pattern: `Shadow : ? : Reflection`,
+    answer: 'LIGHT'
+  },
+  {
+    riddle: `I am not alive, but I grow;\nI do not have lungs, but I need air;\nI do not have a mouth, but water kills me.\nWhat am I?`,
+    pattern: `Spark → ? → Flame`,
+    answer: 'FIRE'
+  },
+  {
+    riddle: `I am always hungry, I must always be fed.\nThe finger I touch, will soon turn red.\nWhat am I?`,
+    pattern: `Burn : ? : Ignite`,
+    answer: 'FLAME'
+  },
+  {
+    riddle: `I have keys but no locks;\nI have space but no rooms;\nYou can enter but not go outside.\nWhat am I?`,
+    pattern: `Computer : ? : Door`,
+    answer: 'KEYBOARD'
+  },
+  {
+    riddle: `I am taken from a mine, and shut up in a wooden case,\nfrom which I am never released, and yet I am used by almost every person.\nWhat am I?`,
+    pattern: `Lead : ? : Graphite`,
+    answer: 'PENCIL'
+  },
+  {
+    riddle: `The more of this there is, the less you see.\nWhat is it?`,
+    pattern: `Shadow : ? : Eclipse`,
+    answer: 'DARKNESS'
+  },
+  {
+    riddle: `I speak without a mouth and hear without ears. I have no body, but I come alive with wind.\nWhat am I?`,
+    pattern: `Voice : ? : Air`,
+    answer: 'ECHO'
+  },
+  {
+    riddle: `I'm tall when I'm young, and I'm short when I'm old.\nWhat am I?`,
+    pattern: `Shadow : ? : Candle`,
+    answer: 'CANDLE'
+  },
+  {
+    riddle: `What is so fragile that saying its name breaks it?`,
+    pattern: `Speak : ? : Say`,
+    answer: 'SILENCE'
+  },
+  {
+    riddle: `I have branches, but no fruit; trunk, or leaves. What am I?`,
+    pattern: `Root : ? : Leaf`,
+    answer: 'BANK'
+  },
+  {
+    riddle: `What can travel around the world while staying in a corner?`,
+    pattern: `Envelope : ? : Postcard`,
+    answer: 'STAMP'
+  }
+  // ... add more puzzles as desired ...
+];
+
+// Deterministically choose 3 puzzles each day based on the local date at 8am
+function getDailyPuzzles() {
+  // Get now, adjust to nearest 8am
+  const now = new Date();
+  let date = new Date(now);
+  if (now.getHours() < 8) {
+    // use yesterday if before 8am
+    date.setDate(date.getDate() - 1);
+  }
+  const y = date.getFullYear();
+  const m = date.getMonth() + 1; // 1-based
+  const d = date.getDate();
+  // Simple seed from date
+  const seed = y * 10000 + m * 100 + d;
+  // Seeded shuffle (Fisher-Yates)
+  function seededShuffle(arr, s) {
+    const copy = arr.slice();
+    let n = copy.length, r, tmp;
+    function seededRand() {
+      s = (s * 9301 + 49297) % 233280;
+      return s / 233280;
+    }
+    for (let i = n - 1; i > 0; i--) {
+      r = Math.floor(seededRand() * (i + 1));
+      tmp = copy[i];
+      copy[i] = copy[r];
+      copy[r] = tmp;
+    }
+    return copy;
+  }
+  return seededShuffle(PUZZLE_BANK, seed).slice(0, 3);
+}
+
+// Replace hardcoded PUZZLES with daily puzzles:
+const PUZZLES = getDailyPuzzles();
+
+function ConfettiBlast() {
+  React.useEffect(() => {
+    window.confetti && window.confetti({
+      particleCount: 120,
+      spread: 90,
+      origin: { y: 0.5, x: 0.5 },
+      zIndex: 1001
+    });
+  }, []);
+  return null;
+}
+
+function HemispheresGame() {
+  const [level, setLevel] = React.useState(0);
+  const [input, setInput] = React.useState('');
+  const [solved, setSolved] = React.useState(false);
+  const [shake, setShake] = React.useState(false);
+
+  const currentPuzzle = PUZZLES[level];
+
+  React.useEffect(() => {
+    setInput('');
+    setSolved(false);
+    setShake(false);
+  }, [level]);
+
+  function handleInputChange(e) {
+    setInput(e.target.value.toUpperCase());
+    setShake(false);
+  }
+
+  function handleKeyDown(e) {
+    if(e.key === 'Enter') {
+      if (solved) {
+        // nextLevel(); intentionally left out, revert to original
+      } else {
+        checkAnswer();
+      }
+    }
+  }
+
+  function checkAnswer() {
+    if(input.trim() === currentPuzzle.answer) {
+      setSolved(true);
+    } else {
+      setShake(true);
+      setTimeout(() => setShake(false), 400);
+    }
+  }
+
+  function nextLevel() {
+    setLevel(l => (l < PUZZLES.length - 1 ? l + 1 : 0));
+  }
+
+  return (
+    <div className="w-screen h-screen flex">
+      {/* Creative (Left) Panel */}
+      <div className="flex-1 h-full serif flex items-center justify-center relative" style={{background: '#FDF6E3'}}>
+        <div className="text-2xl md:text-3xl text-gray-800 leading-snug whitespace-pre-line max-w-xl px-4 select-none" style={{textShadow: '0 2px 12px #fff9'}}>
+          {currentPuzzle.riddle}
+        </div>
+      </div>
+      {/* Logical (Right) Panel */}
+      <div className="flex-1 h-full mono flex items-center justify-center relative" style={{background: '#786FAF'}}>
+        <div className="text-xl md:text-2xl text-white leading-snug px-4 text-right select-none whitespace-pre-line max-w-xl" style={{textShadow: '0 2px 24px #0009'}}>
+          {currentPuzzle.pattern}
+        </div>
+      </div>
+      {/* Synapse: Input in the center, lower (70%) */}
+      <div style={{
+        position: 'absolute',
+        left: '50%',
+        top: '70%',
+        transform: 'translate(-50%, -50%)',
+        zIndex: 1000
+      }}>
+        <div className="flex flex-col items-center">
+          <input
+            className={
+              `border-2 border-pink-500 focus:border-pink-800 bg-white/80 backdrop-blur shadow-lg rounded-lg px-5 py-3 text-lg md:text-2xl tracking-widest outline-none text-center transition-all font-bold ${shake ? 'shake border-red-600' : ''}`
+            }
+            type="text"
+            autoFocus
+            maxLength={16}
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Type your answer..."
+            style={{minWidth: 220, letterSpacing: '0.16em'}}
+            disabled={solved}
+            aria-label="Answer the riddle"
+          />
+          {solved && <>
+            <ConfettiBlast />
+            <button
+              className="mt-5 px-6 py-2 bg-gradient-to-r from-teal-400 via-sky-500 to-pink-400 text-white font-extrabold rounded-full shadow-xl border-2 border-white/60 text-lg transition-all"
+              style={{background:'linear-gradient(90deg,#2dd4bf 0%,#0ea5e9 50%,#ec4899 100%)'}}
+              onClick={nextLevel}
+              tabIndex={0}
+              aria-label="Go to the next level"
+            >Next Level</button>
+          </>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<HemispheresGame />);
+    </script>
+  </body>
+</html>
